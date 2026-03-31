@@ -7,7 +7,7 @@ google cloud n2-standard-2 (2 vCPU, 8 GB)
 
 apt install -y libgflags-dev
 
-make -j2 static_lib DISABLE_WARNING_AS_ERROR=1
+make -j2 static_lib PORTABLE=1 DISABLE_WARNING_AS_ERROR=1
 
 make -j2 db_bench DEBUG_LEVEL=0 LIB_MODE=static DISABLE_WARNING_AS_ERROR=1
 
@@ -53,4 +53,17 @@ while (true) {
 
     sleep(5);
 }
+```
+
+build:
+
+```sh
+cmake -S . -B build
+cmake --build build -j$(nproc)
+```
+
+run:
+
+```sh
+./build/clearctrl
 ```
