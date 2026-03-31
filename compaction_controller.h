@@ -1,29 +1,33 @@
 #include <string>
 #include <thread>
-#include <vector>
 #include <atomic>
+#include <chrono>
 #include <iostream>
 
 #include "rocksdb/db.h"
 #include "rocksdb/options.h"
 #include "rocksdb/status.h"
 
-
-static std::atomic<bool> g_stop{false};
-
 class CompactionController {
 public:
     CompactionController(rocksdb::DB* db,
-                            int l0_threshold,
+                            std::atomic<bool>* stop_flag,
+                            int low_threshold,
+                            int high_threshold,
                             int low_bg_jobs,
                             int high_bg_jobs,
-                            int interval_sec)
+                            int interval_sec,
+                            int cooldown_sec)
         : db_(db),
-            l0_threshold_(l0_threshold),
+            stop_flag_(stop_flag),
+            low_threshold_(low_threshold),
+            high_threshold_(high_threshold),
             low_bg_jobs_(low_bg_jobs),
             high_bg_jobs_(high_bg_jobs),
             interval_sec_(interval_sec),
-            current_bg_jobs_(-1) {}
+            cooldown_sec_(cooldown_sec),
+            current_bg_jobs_(-1),
+            last_switch_tp_(std::chrono::steady_clock::now()) {}
 
     void Start() {
         worker_ = std::thread(&CompactionController::Run, this);
@@ -33,6 +37,10 @@ public:
         if (worker_.joinable()) {
             worker_.join();
         }
+    }
+
+    int CurrentBgJobs() const {
+        return current_bg_jobs_.load();
     }
 
 private:
@@ -47,9 +55,9 @@ private:
         return std::stoull(prop);
     }
 
-    void ApplyMaxBackgroundJobs(int jobs) {
+    bool ApplyMaxBackgroundJobs(int jobs) {
         if (jobs == current_bg_jobs_) {
-            return;  // 避免重复设置
+            return false;  // 避免重复设置
         }
 
         rocksdb::Status s = db_->SetDBOptions({
@@ -59,30 +67,55 @@ private:
         if (!s.ok()) {
             std::cerr << "[controller] SetDBOptions failed: "
                         << s.ToString() << std::endl;
-            return;
+            return false;
         }
 
-        current_bg_jobs_ = jobs;
+        current_bg_jobs_.store(jobs);
         std::cout << "[controller] applied max_background_jobs="
                     << jobs << std::endl;
+        return true;
+    }
+
+    int DecideTargetJobs(uint64_t l0, int current_jobs) const {
+        if (current_jobs < 0) {
+            return low_bg_jobs_;
+        }
+        if (current_jobs != high_bg_jobs_ &&
+            l0 >= static_cast<uint64_t>(high_threshold_)) {
+            return high_bg_jobs_;
+        }
+        if (current_jobs != low_bg_jobs_ &&
+            l0 <= static_cast<uint64_t>(low_threshold_)) {
+            return low_bg_jobs_;
+        }
+        return current_jobs;
     }
 
     void Run() {
-        while (!g_stop.load()) {
+        while (!stop_flag_->load()) {
             uint64_t l0 = GetL0Files();
-
-            int target_jobs = (l0 > static_cast<uint64_t>(l0_threshold_))
-                                ? high_bg_jobs_
-                                : low_bg_jobs_;
+            const int current_jobs = current_bg_jobs_.load();
+            int target_jobs = DecideTargetJobs(l0, current_jobs);
 
             std::cout << "[controller] L0 files=" << l0
-                        << ", threshold=" << l0_threshold_
+                        << ", low_threshold=" << low_threshold_
+                        << ", high_threshold=" << high_threshold_
+                        << ", current max_background_jobs=" << current_jobs
                         << ", target max_background_jobs=" << target_jobs
                         << std::endl;
+            auto now = std::chrono::steady_clock::now();
+            bool cooldown_blocked =
+                (current_jobs >= 0 && target_jobs != current_jobs &&
+                 std::chrono::duration_cast<std::chrono::seconds>(
+                     now - last_switch_tp_).count() < cooldown_sec_);
+            if (cooldown_blocked) {
+                std::cout << "[controller] cooldown active, skip switching"
+                          << std::endl;
+            } else if (ApplyMaxBackgroundJobs(target_jobs)) {
+                last_switch_tp_ = now;
+            }
 
-            ApplyMaxBackgroundJobs(target_jobs);
-
-            for (int i = 0; i < interval_sec_ && !g_stop.load(); ++i) {
+            for (int i = 0; i < interval_sec_ && !stop_flag_->load(); ++i) {
                 std::this_thread::sleep_for(std::chrono::seconds(1));
             }
         }
@@ -92,10 +125,14 @@ private:
 
 private:
     rocksdb::DB* db_;
-    int l0_threshold_;
+    std::atomic<bool>* stop_flag_;
+    int low_threshold_;
+    int high_threshold_;
     int low_bg_jobs_;
     int high_bg_jobs_;
     int interval_sec_;
-    int current_bg_jobs_;
+    int cooldown_sec_;
+    std::atomic<int> current_bg_jobs_;
+    std::chrono::steady_clock::time_point last_switch_tp_;
     std::thread worker_;
 };

@@ -65,5 +65,9 @@ cmake --build build -j$(nproc)
 run:
 
 ```sh
-./build/clearctrl
+./build/clearctrl_test 
+ --controller=on|off   Enable/disable dynamic controller (default: on)
+  --rounds=N            Number of write rounds; 0 means run until Ctrl+C (default: 0)
+  --log-path=FILE       Output CSV path (default: metrics.csv)
+  -h, --help            Show help
 ```

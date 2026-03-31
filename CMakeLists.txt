@@ -9,9 +9,9 @@ set(ROCKSDB_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../rocksdb" CACHE PATH "RocksDB so
 
 find_package(Threads REQUIRED)
 
-add_executable(clearctrl_demo main.cc)
-target_include_directories(clearctrl_demo PRIVATE "${ROCKSDB_ROOT}/include")
-target_link_libraries(clearctrl_demo PRIVATE
+add_executable(clearctrl_bench bench_main.cc)
+target_include_directories(clearctrl_bench PRIVATE "${ROCKSDB_ROOT}/include")
+target_link_libraries(clearctrl_bench PRIVATE
   "${ROCKSDB_ROOT}/librocksdb.a"
   Threads::Threads
   rt
