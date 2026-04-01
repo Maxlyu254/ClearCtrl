@@ -54,3 +54,46 @@ while (true) {
     sleep(5);
 }
 ```
+
+---
+
+## Building
+
+Dependencies (Ubuntu):
+
+```bash
+apt install -y libgflags-dev libzstd-dev libsnappy-dev liblz4-dev libbz2-dev
+```
+
+Build the controller library (`libclearctrl.a`):
+
+```bash
+make
+```
+
+`ROCKSDB_DIR` defaults to `~/cs525/project/rocksdb`. Override it if your RocksDB tree is elsewhere:
+
+```bash
+make ROCKSDB_DIR=/path/to/rocksdb
+```
+
+RocksDB v10.10.1 requires C++20. The Makefile sets `-std=c++20` automatically.
+
+## Testing
+
+Build and run the benchmark:
+
+```bash
+make test
+```
+
+This compiles `tests/bench.cc` into a `bench` binary, then runs it. The benchmark runs the same `fillrandom` workload twice — once without the controller (baseline) and once with it — and writes results to `logs/`:
+
+```
+logs/bench-baseline-<timestamp>.log
+logs/bench-controlled-<timestamp>.log
+```
+
+Both files receive a final side-by-side comparison table. Progress is also printed to stderr during the run.
+
+The workload configuration matches `scripts/fillrandom-compaction.sh`: 2M random writes, 1 KB values, 2 threads, 32 MB write buffer, `max_background_jobs=2`, no compression.

@@ -1,1 +1,16 @@
 .claude
+
+# Build outputs
+libclearctrl.a
+bench
+src/*.o
+
+# Benchmark logs (generated at runtime)
+logs/bench-*.log
+
+# Editor and OS
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
