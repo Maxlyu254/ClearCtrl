@@ -183,12 +183,13 @@ static RunResult RunBench(
     rocksdb::DestroyDB(db_path, rocksdb::Options{});
 
     rocksdb::Options opts = BuildOptions();
-    rocksdb::DB* db = nullptr;
-    auto s = rocksdb::DB::Open(opts, db_path, &db);
+    std::unique_ptr<rocksdb::DB> db_owner;
+    auto s = rocksdb::DB::Open(opts, db_path, &db_owner);
     if (!s.ok()) {
         Log(log, "ERROR: DB::Open failed: %s", s.ToString().c_str());
         return {};
     }
+    rocksdb::DB* db = db_owner.get();
 
     // Optionally attach the controller before writes begin.
     std::unique_ptr<CompactionController> ctl;
@@ -242,7 +243,7 @@ static RunResult RunBench(
     fputc('\n', log);
     fflush(log);
 
-    delete db;
+    db_owner.reset();  // close DB before destroying
     rocksdb::DestroyDB(db_path, rocksdb::Options{});
 
     return r;
