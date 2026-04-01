@@ -8,7 +8,7 @@ CXXFLAGS := -std=c++20 -O2 -Wall -Wextra \
 
 # Libraries needed to link against the RocksDB static archive.
 LDFLAGS  := $(ROCKSDB_DIR)/librocksdb.a \
-            -lpthread -ldl -lz
+            -lpthread -ldl -lz -lzstd -lsnappy -llz4 -lbz2
 
 SRCS := src/compaction_controller.cc \
         src/metrics.cc \
