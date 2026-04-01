@@ -2,7 +2,7 @@
 ROCKSDB_DIR ?= $(HOME)/cs525/project/rocksdb
 
 CXX      := g++
-CXXFLAGS := -std=c++17 -O2 -Wall -Wextra \
+CXXFLAGS := -std=c++20 -O2 -Wall -Wextra \
             -Iinclude -Isrc \
             -I$(ROCKSDB_DIR)/include
 
